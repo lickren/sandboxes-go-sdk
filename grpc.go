@@ -58,6 +58,8 @@ func (c *client) InteractiveAccountService() InteractiveAccountService {
 	return accountServiceClient{c: c}
 }
 
+func (c *client) AccountStatusService() AccountStatusService { return accountServiceClient{c: c} }
+
 func (c *client) VersionService() VersionService { return versionClient{c: c} }
 
 func (c *client) DockerPATAccountService() DockerPATAccountService { return accountServiceClient{c: c} }
@@ -423,6 +425,16 @@ func finishInteractiveDeviceLogin(stream accountDeviceLoginStream) error {
 		return &Error{Code: "unauthenticated", Message: "account provider did not confirm authentication"}
 	}
 	return nil
+}
+
+func (a accountServiceClient) Status(ctx context.Context, provider string) (bool, error) {
+	ctx, cancel := a.c.context(ctx)
+	defer cancel()
+	resp, err := a.c.accounts.Status(ctx, &localv1.AccountServiceStatusRequest{Provider: provider})
+	if err != nil {
+		return false, mapError(err)
+	}
+	return resp.GetCredentialPresent(), nil
 }
 
 func (a accountServiceClient) Login(ctx context.Context, provider string) error {

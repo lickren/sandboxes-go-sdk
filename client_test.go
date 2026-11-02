@@ -225,6 +225,15 @@ func TestAccountLoginAndLogout(t *testing.T) {
 	}
 }
 
+func TestAccountStatusReturnsCredentialPresenceOnly(t *testing.T) {
+	client, cleanup := newTestClient(t)
+	defer cleanup()
+	present, err := AccountStatus(client).Status(context.Background(), "docker")
+	if err != nil || !present {
+		t.Fatalf("account status present=%t err=%v", present, err)
+	}
+}
+
 func TestInteractiveAccountLoginDeviceHandoff(t *testing.T) {
 	client, cleanup := newTestClient(t)
 	defer cleanup()
@@ -267,6 +276,10 @@ func TestAccountsHandlesMissingProvider(t *testing.T) {
 		_, err = Accounts(client).Logout(context.Background(), "docker")
 		if !errors.As(err, &typed) || typed.Code != errorCodeUnsupported {
 			t.Fatalf("missing account provider logout returned %v", err)
+		}
+		_, err = AccountStatus(client).Status(context.Background(), "docker")
+		if !errors.As(err, &typed) || typed.Code != errorCodeUnsupported {
+			t.Fatalf("missing account status provider returned %v", err)
 		}
 	}
 }
@@ -351,6 +364,13 @@ func (fakeAccountServer) LoginDevice(stream grpc.BidiStreamingServer[localv1.Acc
 
 func (fakeAccountServer) Logout(_ context.Context, req *localv1.AccountServiceLogoutRequest) (*localv1.AccountServiceLogoutResponse, error) {
 	return &localv1.AccountServiceLogoutResponse{Removed: req.GetProvider() == "docker"}, nil
+}
+
+func (fakeAccountServer) Status(_ context.Context, req *localv1.AccountServiceStatusRequest) (*localv1.AccountServiceStatusResponse, error) {
+	if req.GetProvider() != "docker" {
+		return nil, status.Error(codes.InvalidArgument, "unexpected account status provider")
+	}
+	return &localv1.AccountServiceStatusResponse{Provider: "docker", CredentialPresent: true}, nil
 }
 
 type fakeRegistryCredentialServer struct {
