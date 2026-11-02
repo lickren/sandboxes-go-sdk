@@ -3,7 +3,7 @@ package sandboxes
 import (
 	"context"
 
-	localv1 "github.com/QUOINER/sandboxes-api/gen/go/sandboxes/local/v1"
+	localv1 "github.com/quoiner/sandboxes-api/gen/go/sandboxes/local/v1"
 )
 
 // SecretScope controls where a service secret may be used.

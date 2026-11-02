@@ -1,9 +1,9 @@
-module github.com/QUOINER/sandboxes-go-sdk
+module github.com/quoiner/sandboxes-go-sdk
 
 go 1.27
 
 require (
-	github.com/QUOINER/sandboxes-api v0.0.10
+	github.com/quoiner/sandboxes-api v0.0.10
 	google.golang.org/grpc v1.85.0
 )
 

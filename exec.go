@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	localv1 "github.com/QUOINER/sandboxes-api/gen/go/sandboxes/local/v1"
+	localv1 "github.com/quoiner/sandboxes-api/gen/go/sandboxes/local/v1"
 )
 
 // ExecRequest specifies a non-interactive guest command.
