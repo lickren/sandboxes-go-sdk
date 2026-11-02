@@ -32,6 +32,33 @@ type AccountService interface {
 	Logout(ctx context.Context, provider string) (bool, error)
 }
 
+// DeviceLoginInfo contains only the public user-facing details needed for a
+// provider's device authorization handoff. The daemon retains the device code.
+type DeviceLoginInfo struct {
+	UserCode        string
+	VerificationURI string
+}
+
+// InteractiveAccountService exposes the device-code handoff used by terminal
+// clients. The callback should return only after the user continues or cancels.
+type InteractiveAccountService interface {
+	LoginInteractive(ctx context.Context, provider string, handoff func(context.Context, DeviceLoginInfo) error) error
+}
+
+type InteractiveAccountServiceProvider interface {
+	InteractiveAccountService() InteractiveAccountService
+}
+
+// InteractiveAccounts returns the optional device-code account capability.
+func InteractiveAccounts(c Client) InteractiveAccountService {
+	if provider, ok := c.(InteractiveAccountServiceProvider); ok {
+		if service := provider.InteractiveAccountService(); service != nil {
+			return service
+		}
+	}
+	return unsupportedInteractiveAccountService{}
+}
+
 // Accounts returns the optional local account service for clients that support
 // the OAuth account RPC. It does not change the root Client interface.
 func Accounts(c Client) AccountService {
@@ -78,6 +105,12 @@ func (unsupportedDockerPATAccountService) LoginWithPAT(context.Context, string, 
 }
 
 type unsupportedAccountService struct{}
+
+type unsupportedInteractiveAccountService struct{}
+
+func (unsupportedInteractiveAccountService) LoginInteractive(context.Context, string, func(context.Context, DeviceLoginInfo) error) error {
+	return &Error{Code: errorCodeUnsupported, Message: "interactive account service is not supported by this client"}
+}
 
 func (unsupportedAccountService) Login(context.Context, string) error {
 	return &Error{Code: errorCodeUnsupported, Message: "account service is not supported by this client"}
