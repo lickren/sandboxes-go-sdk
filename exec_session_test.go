@@ -7,7 +7,7 @@ import (
 	"net"
 	"testing"
 
-	localv1 "github.com/KLORQ/sandboxes-api/gen/go/sandboxes/local/v1"
+	localv1 "github.com/QUOINER/sandboxes-api/gen/go/sandboxes/local/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
 )
