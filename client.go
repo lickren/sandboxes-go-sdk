@@ -9,7 +9,8 @@ import (
 
 // Config controls the local daemon connection.
 type Config struct {
-	// Address is the Unix socket path of the local daemon.
+	// Address identifies the local daemon endpoint. Unix-like hosts use a Unix
+	// domain socket path; Windows uses the corresponding access-controlled pipe.
 	Address string
 	// Dialer overrides the default Unix socket dialer.
 	Dialer func(ctx context.Context, address string) (net.Conn, error)

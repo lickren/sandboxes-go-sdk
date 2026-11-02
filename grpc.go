@@ -26,10 +26,14 @@ func New(cfg Config) (Client, error) {
 		return nil, fmt.Errorf("sandbox daemon address is required")
 	}
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
-	if cfg.Dialer != nil {
-		opts = append(opts, grpc.WithContextDialer(cfg.Dialer))
+	target, dialer, err := localGRPCEndpoint(cfg.Address, cfg.Dialer)
+	if err != nil {
+		return nil, fmt.Errorf("resolve local daemon endpoint: %w", err)
 	}
-	conn, err := grpc.NewClient("unix:"+cfg.Address, opts...)
+	if dialer != nil {
+		opts = append(opts, grpc.WithContextDialer(dialer))
+	}
+	conn, err := grpc.NewClient(target, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create grpc client: %w", err)
 	}
