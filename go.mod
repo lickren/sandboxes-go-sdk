@@ -3,7 +3,7 @@ module github.com/quoiner/sandboxes-go-sdk
 go 1.27
 
 require (
-	github.com/Microsoft/go-winio v0.6.3-0.20251027160822-ad3df93bed29
+	github.com/Microsoft/go-winio v0.6.4
 	github.com/quoiner/sandboxes-api v0.0.10
 	golang.org/x/sys v0.49.0
 	google.golang.org/grpc v1.85.0
