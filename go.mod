@@ -1,10 +1,10 @@
-module github.com/lickren/sandboxes-go-sdk
+module github.com/rheic/sandboxes-go-sdk
 
 go 1.27
 
 require (
 	github.com/Microsoft/go-winio v0.6.4
-	github.com/lickren/sandboxes-api v0.0.13
+	github.com/rheic/sandboxes-api v0.0.13
 	golang.org/x/sys v0.49.0
 	google.golang.org/grpc v1.85.0
 )
