@@ -3,7 +3,7 @@ package sandboxes
 import (
 	"testing"
 
-	localv1 "github.com/quoiner/sandboxes-api/gen/go/sandboxes/local/v1"
+	localv1 "github.com/lickren/sandboxes-api/gen/go/sandboxes/local/v1"
 )
 
 func TestSandboxConversionRejectsInvalidNetworkFields(t *testing.T) {
