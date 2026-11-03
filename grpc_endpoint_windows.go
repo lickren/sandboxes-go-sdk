@@ -15,7 +15,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-const localPipePrefix = `\\.\pipe\lickren-sandboxesd-`
+const localPipePrefix = `\\.\pipe\rheic-sandboxesd-`
 
 func localGRPCEndpoint(address string, dialer func(context.Context, string) (net.Conn, error)) (string, func(context.Context, string) (net.Conn, error), error) {
 	if dialer != nil {
