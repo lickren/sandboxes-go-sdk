@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	localv1 "github.com/KLORQ/sandboxes-api/gen/go/sandboxes/local/v1"
+	localv1 "github.com/quoiner/sandboxes-api/gen/go/sandboxes/local/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -225,6 +225,43 @@ func TestAccountLoginAndLogout(t *testing.T) {
 	}
 }
 
+func TestAccountStatusReturnsCredentialPresenceOnly(t *testing.T) {
+	client, cleanup := newTestClient(t)
+	defer cleanup()
+	present, err := AccountStatus(client).Status(context.Background(), "docker")
+	if err != nil || !present {
+		t.Fatalf("account status present=%t err=%v", present, err)
+	}
+}
+
+func TestInteractiveAccountLoginDeviceHandoff(t *testing.T) {
+	client, cleanup := newTestClient(t)
+	defer cleanup()
+	var info DeviceLoginInfo
+	err := InteractiveAccounts(client).LoginInteractive(context.Background(), "docker", func(_ context.Context, got DeviceLoginInfo) error {
+		info = got
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.UserCode != "ABCD-EFGH" || info.VerificationURI != "https://login.example/device" {
+		t.Fatalf("device handoff details = %+v", info)
+	}
+}
+
+func TestInteractiveAccountLoginCancellationStopsBeforeCompletion(t *testing.T) {
+	client, cleanup := newTestClient(t)
+	defer cleanup()
+	canceled := errors.New("handoff canceled by user")
+	err := InteractiveAccounts(client).LoginInteractive(context.Background(), "docker", func(_ context.Context, _ DeviceLoginInfo) error {
+		return canceled
+	})
+	if !errors.Is(err, canceled) {
+		t.Fatalf("expected local handoff cancellation, got %v", err)
+	}
+}
+
 type nilAccountProvider struct{ Client }
 
 func (nilAccountProvider) AccountService() AccountService { return nil }
@@ -239,6 +276,10 @@ func TestAccountsHandlesMissingProvider(t *testing.T) {
 		_, err = Accounts(client).Logout(context.Background(), "docker")
 		if !errors.As(err, &typed) || typed.Code != errorCodeUnsupported {
 			t.Fatalf("missing account provider logout returned %v", err)
+		}
+		_, err = AccountStatus(client).Status(context.Background(), "docker")
+		if !errors.As(err, &typed) || typed.Code != errorCodeUnsupported {
+			t.Fatalf("missing account status provider returned %v", err)
 		}
 	}
 }
@@ -303,8 +344,33 @@ func (fakeAccountServer) Login(_ context.Context, req *localv1.AccountServiceLog
 	return &localv1.AccountServiceLoginResponse{Provider: "docker", Authenticated: true}, nil
 }
 
+func (fakeAccountServer) LoginDevice(stream grpc.BidiStreamingServer[localv1.AccountServiceLoginDeviceRequest, localv1.AccountServiceLoginDeviceResponse]) error {
+	initial, err := stream.Recv()
+	if err != nil || initial.GetProvider() != "docker" {
+		return status.Error(codes.InvalidArgument, "unexpected device login provider")
+	}
+	if err := stream.Send(&localv1.AccountServiceLoginDeviceResponse{UserCode: "ABCD-EFGH", VerificationUri: "https://login.example/device"}); err != nil {
+		return err
+	}
+	ack, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+	if !ack.GetContinueAfterHandoff() {
+		return status.Error(codes.Canceled, "device login canceled")
+	}
+	return stream.Send(&localv1.AccountServiceLoginDeviceResponse{Authenticated: true})
+}
+
 func (fakeAccountServer) Logout(_ context.Context, req *localv1.AccountServiceLogoutRequest) (*localv1.AccountServiceLogoutResponse, error) {
 	return &localv1.AccountServiceLogoutResponse{Removed: req.GetProvider() == "docker"}, nil
+}
+
+func (fakeAccountServer) Status(_ context.Context, req *localv1.AccountServiceStatusRequest) (*localv1.AccountServiceStatusResponse, error) {
+	if req.GetProvider() != "docker" {
+		return nil, status.Error(codes.InvalidArgument, "unexpected account status provider")
+	}
+	return &localv1.AccountServiceStatusResponse{Provider: "docker", CredentialPresent: true}, nil
 }
 
 type fakeRegistryCredentialServer struct {

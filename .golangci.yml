@@ -123,4 +123,4 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/KLORQ/sandboxes-go-sdk
+        - github.com/quoiner/sandboxes-go-sdk

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	localv1 "github.com/KLORQ/sandboxes-api/gen/go/sandboxes/local/v1"
+	localv1 "github.com/quoiner/sandboxes-api/gen/go/sandboxes/local/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -26,10 +26,14 @@ func New(cfg Config) (Client, error) {
 		return nil, fmt.Errorf("sandbox daemon address is required")
 	}
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
-	if cfg.Dialer != nil {
-		opts = append(opts, grpc.WithContextDialer(cfg.Dialer))
+	target, dialer, err := localGRPCEndpoint(cfg.Address, cfg.Dialer)
+	if err != nil {
+		return nil, fmt.Errorf("resolve local daemon endpoint: %w", err)
 	}
-	conn, err := grpc.NewClient("unix:"+cfg.Address, opts...)
+	if dialer != nil {
+		opts = append(opts, grpc.WithContextDialer(dialer))
+	}
+	conn, err := grpc.NewClient(target, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create grpc client: %w", err)
 	}
@@ -53,6 +57,12 @@ func (c *client) RegistryCredentials() RegistryCredentialService {
 }
 
 func (c *client) AccountService() AccountService { return accountServiceClient{c: c} }
+
+func (c *client) InteractiveAccountService() InteractiveAccountService {
+	return accountServiceClient{c: c}
+}
+
+func (c *client) AccountStatusService() AccountStatusService { return accountServiceClient{c: c} }
 
 func (c *client) VersionService() VersionService { return versionClient{c: c} }
 
@@ -353,6 +363,83 @@ func (v versionClient) Get(ctx context.Context) (VersionInfo, error) {
 type registryCredentialClient struct{ c *client }
 
 type accountServiceClient struct{ c *client }
+
+type accountDeviceLoginStream = grpc.BidiStreamingClient[localv1.AccountServiceLoginDeviceRequest, localv1.AccountServiceLoginDeviceResponse]
+
+func (a accountServiceClient) LoginInteractive(ctx context.Context, provider string, handoff func(context.Context, DeviceLoginInfo) error) error {
+	if provider == "" || handoff == nil {
+		return &Error{Code: errorCodeInvalidArgument, Message: "provider and device handoff are required"}
+	}
+	ctx, cancel := a.c.context(ctx)
+	defer cancel()
+	stream, err := a.c.accounts.LoginDevice(ctx)
+	if err != nil {
+		return mapError(err)
+	}
+	info, err := beginInteractiveDeviceLogin(stream, provider)
+	if err != nil {
+		return err
+	}
+	if err := handoff(ctx, info); err != nil {
+		cancelInteractiveDeviceLogin(stream)
+		return err
+	}
+	if err := confirmInteractiveDeviceLogin(stream); err != nil {
+		return err
+	}
+	return finishInteractiveDeviceLogin(stream)
+}
+
+func beginInteractiveDeviceLogin(stream accountDeviceLoginStream, provider string) (DeviceLoginInfo, error) {
+	if err := stream.Send(&localv1.AccountServiceLoginDeviceRequest{Provider: provider}); err != nil {
+		return DeviceLoginInfo{}, mapError(err)
+	}
+	initial, err := stream.Recv()
+	if err != nil {
+		return DeviceLoginInfo{}, mapError(err)
+	}
+	info := DeviceLoginInfo{UserCode: initial.GetUserCode(), VerificationURI: initial.GetVerificationUri()}
+	if info.UserCode == "" || info.VerificationURI == "" || initial.GetAuthenticated() {
+		return DeviceLoginInfo{}, &Error{Code: "failed_precondition", Message: "daemon returned invalid device login details"}
+	}
+	return info, nil
+}
+
+func cancelInteractiveDeviceLogin(stream accountDeviceLoginStream) {
+	_ = stream.Send(&localv1.AccountServiceLoginDeviceRequest{ContinueAfterHandoff: false})
+	_ = stream.CloseSend()
+}
+
+func confirmInteractiveDeviceLogin(stream accountDeviceLoginStream) error {
+	if err := stream.Send(&localv1.AccountServiceLoginDeviceRequest{ContinueAfterHandoff: true}); err != nil {
+		return mapError(err)
+	}
+	if err := stream.CloseSend(); err != nil {
+		return mapError(err)
+	}
+	return nil
+}
+
+func finishInteractiveDeviceLogin(stream accountDeviceLoginStream) error {
+	result, err := stream.Recv()
+	if err != nil {
+		return mapError(err)
+	}
+	if !result.GetAuthenticated() || result.GetUserCode() != "" || result.GetVerificationUri() != "" {
+		return &Error{Code: "unauthenticated", Message: "account provider did not confirm authentication"}
+	}
+	return nil
+}
+
+func (a accountServiceClient) Status(ctx context.Context, provider string) (bool, error) {
+	ctx, cancel := a.c.context(ctx)
+	defer cancel()
+	resp, err := a.c.accounts.Status(ctx, &localv1.AccountServiceStatusRequest{Provider: provider})
+	if err != nil {
+		return false, mapError(err)
+	}
+	return resp.GetCredentialPresent(), nil
+}
 
 func (a accountServiceClient) Login(ctx context.Context, provider string) error {
 	ctx, cancel := a.c.context(ctx)

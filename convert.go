@@ -3,7 +3,7 @@ package sandboxes
 import (
 	"time"
 
-	localv1 "github.com/KLORQ/sandboxes-api/gen/go/sandboxes/local/v1"
+	localv1 "github.com/quoiner/sandboxes-api/gen/go/sandboxes/local/v1"
 )
 
 func fromProtoSandbox(in *localv1.Sandbox) (*Sandbox, error) {
