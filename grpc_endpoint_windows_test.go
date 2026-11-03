@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/Microsoft/go-winio"
-	localv1 "github.com/quoiner/sandboxes-api/gen/go/sandboxes/local/v1"
+	localv1 "github.com/lickren/sandboxes-api/gen/go/sandboxes/local/v1"
 	"golang.org/x/sys/windows"
 	"google.golang.org/grpc"
 )
@@ -37,7 +37,7 @@ func TestWindowsLocalPipePathMatchesPerUserContract(t *testing.T) {
 }
 
 func TestWindowsLocalPipePathPreservesExplicitPipe(t *testing.T) {
-	const explicit = `\\.\pipe\quoiner-custom-daemon`
+	const explicit = `\\.\pipe\lickren-custom-daemon`
 	got, err := localPipePath(explicit)
 	if err != nil {
 		t.Fatal(err)
