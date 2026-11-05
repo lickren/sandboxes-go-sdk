@@ -359,7 +359,9 @@ type CreateRequest struct {
 	// Privileged enables the dedicated Docker profile. It is never implicit.
 	Privileged bool
 	// Env is baked into the sandbox for every process, including exec.
-	Env              map[string]string
+	Env map[string]string
+	// OAuthCredentials carries declaration-only kit metadata. Create verifies
+	// the daemon API version before sending it and fails closed for older APIs.
 	OAuthCredentials []OAuthCredential
 }
 

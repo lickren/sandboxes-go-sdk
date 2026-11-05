@@ -189,6 +189,15 @@ func (c *client) context(ctx context.Context) (context.Context, context.CancelFu
 type sandboxClient struct{ c *client }
 
 func (s sandboxClient) Create(ctx context.Context, req CreateRequest) (*Operation, error) {
+	if len(req.OAuthCredentials) > 0 {
+		version, err := Version(s.c).Get(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("verify daemon OAuth metadata support: %w", err)
+		}
+		if !apiVersionAtLeast(version.APIVersion, oauthCredentialsMinimumAPIVersion) {
+			return nil, &Error{Code: errorCodeUnsupported, Message: "daemon API does not support OAuth credential metadata"}
+		}
+	}
 	ctx, cancel := s.c.context(ctx)
 	defer cancel()
 	resp, err := s.c.sandboxes.Create(ctx, &localv1.CreateRequest{
