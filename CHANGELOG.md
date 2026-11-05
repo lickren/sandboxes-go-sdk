@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.0.15 — 2026-11-05
+
+### Added
+
+- Add nested Docker Kits v2-shaped OAuth credential configuration to sandbox Create requests; this does not imply daemon runtime support.
+
+
 ## v0.0.12 — 2026-11-03
 
 ### Added

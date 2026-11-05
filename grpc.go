@@ -192,26 +192,47 @@ func (s sandboxClient) Create(ctx context.Context, req CreateRequest) (*Operatio
 	ctx, cancel := s.c.context(ctx)
 	defer cancel()
 	resp, err := s.c.sandboxes.Create(ctx, &localv1.CreateRequest{
-		Name:           req.Name,
-		Image:          req.Image,
-		Workspace:      req.Workspace,
-		IdempotencyKey: req.IdempotencyKey,
-		Cpus:           req.CPUs,
-		MemoryMib:      req.MemoryMiB,
-		Workspaces:     toProtoWorkspaces(req.Workspaces),
-		Ports:          toProtoPorts(req.Ports),
-		Allow:          toProtoRules(req.Allow),
-		Deny:           toProtoRules(req.Deny),
-		Agent:          req.Agent,
-		Detached:       req.Detached,
-		PolicyProfile:  req.PolicyProfile,
-		Privileged:     req.Privileged,
-		Env:            req.Env,
+		Name:             req.Name,
+		Image:            req.Image,
+		Workspace:        req.Workspace,
+		IdempotencyKey:   req.IdempotencyKey,
+		Cpus:             req.CPUs,
+		MemoryMib:        req.MemoryMiB,
+		Workspaces:       toProtoWorkspaces(req.Workspaces),
+		Ports:            toProtoPorts(req.Ports),
+		Allow:            toProtoRules(req.Allow),
+		Deny:             toProtoRules(req.Deny),
+		Agent:            req.Agent,
+		Detached:         req.Detached,
+		PolicyProfile:    req.PolicyProfile,
+		Privileged:       req.Privileged,
+		Env:              req.Env,
+		OauthCredentials: toProtoOAuthCredentials(req.OAuthCredentials),
 	})
 	if err != nil {
 		return nil, mapError(err)
 	}
 	return fromProtoOperation(resp.GetOperation()), nil
+}
+
+func toProtoOAuthCredentials(credentials []OAuthCredential) []*localv1.OAuthCredential {
+	if len(credentials) == 0 {
+		return nil
+	}
+	out := make([]*localv1.OAuthCredential, 0, len(credentials))
+	for i := range credentials {
+		credential := &credentials[i]
+		out = append(out, &localv1.OAuthCredential{
+			Service:        credential.Service,
+			TokenEndpoint:  &localv1.OAuthTokenEndpoint{Host: credential.TokenEndpoint.Host, Path: credential.TokenEndpoint.Path},
+			ResourceHosts:  append([]string(nil), credential.ResourceHosts...),
+			Sentinels:      &localv1.OAuthSentinels{AccessToken: credential.Sentinels.AccessToken, RefreshToken: credential.Sentinels.RefreshToken},
+			CredentialFile: &localv1.OAuthCredentialFile{Path: credential.CredentialFile.Path, StructureJson: credential.CredentialFile.StructureJSON, Template: credential.CredentialFile.Template},
+			ResponseFields: &localv1.OAuthResponseFields{AccessToken: credential.ResponseFields.AccessToken, RefreshToken: credential.ResponseFields.RefreshToken, ExpiresIn: credential.ResponseFields.ExpiresIn, Scope: credential.ResponseFields.Scope, IdToken: credential.ResponseFields.IDToken},
+			Passthrough:    credential.Passthrough, SkipIfEnv: append([]string(nil), credential.SkipIfEnv...),
+		})
+	}
+	return out
 }
 
 func (s sandboxClient) GetPolicyProfile(ctx context.Context) (string, error) {

@@ -24,6 +24,7 @@ type ServiceSecret struct {
 // SecretService manages host-keychain service secrets.
 type SecretService interface {
 	Set(ctx context.Context, service string, scope SecretScope, sandboxName string, value []byte) (ServiceSecret, error)
+	Create(ctx context.Context, service string, scope SecretScope, sandboxName string, value []byte) (ServiceSecret, error)
 	List(ctx context.Context) ([]ServiceSecret, error)
 	Remove(ctx context.Context, service string, scope SecretScope, sandboxName string) (bool, error)
 }
@@ -51,6 +52,10 @@ func (unsupportedSecretService) Set(context.Context, string, SecretScope, string
 	return ServiceSecret{}, &Error{Code: errorCodeUnsupported, Message: unsupportedSecretsMessage}
 }
 
+func (unsupportedSecretService) Create(context.Context, string, SecretScope, string, []byte) (ServiceSecret, error) {
+	return ServiceSecret{}, &Error{Code: errorCodeUnsupported, Message: unsupportedSecretsMessage}
+}
+
 func (unsupportedSecretService) List(context.Context) ([]ServiceSecret, error) {
 	return nil, &Error{Code: errorCodeUnsupported, Message: unsupportedSecretsMessage}
 }
@@ -67,6 +72,20 @@ func (s secretClient) Set(ctx context.Context, service string, scope SecretScope
 	ctx, cancel := s.c.context(ctx)
 	defer cancel()
 	resp, err := s.c.secrets.Set(ctx, &localv1.SecretServiceSetRequest{
+		Service: service, Scope: string(scope), SandboxName: sandboxName, Value: value,
+	})
+	if err != nil {
+		return ServiceSecret{}, mapError(err)
+	}
+	return serviceSecretFromProto(resp.GetSecret()), nil
+}
+
+// Create stores a service secret only when no secret already exists in that scope.
+// The daemon performs the existence check and write under the same credential gate.
+func (s secretClient) Create(ctx context.Context, service string, scope SecretScope, sandboxName string, value []byte) (ServiceSecret, error) {
+	ctx, cancel := s.c.context(ctx)
+	defer cancel()
+	resp, err := s.c.secrets.Create(ctx, &localv1.SecretServiceCreateRequest{
 		Service: service, Scope: string(scope), SandboxName: sandboxName, Value: value,
 	})
 	if err != nil {

@@ -34,11 +34,22 @@ func TestCreatePassesEnv(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = client.Close() })
-	if _, err := client.Sandboxes().Create(context.Background(), CreateRequest{Name: "dev", Env: map[string]string{"A": "1"}, PolicyProfile: "balanced"}); err != nil {
+	if _, err := client.Sandboxes().Create(context.Background(), CreateRequest{
+		Name: "dev", Env: map[string]string{"A": "1"}, PolicyProfile: "balanced",
+		OAuthCredentials: []OAuthCredential{{
+			Service: "claude", TokenEndpoint: OAuthTokenEndpoint{Host: "auth.example.test", Path: "/oauth/token"},
+			ResourceHosts: []string{"api.example.test"}, Sentinels: OAuthSentinels{AccessToken: "access-sentinel", RefreshToken: "refresh-sentinel"},
+		}},
+	}); err != nil {
 		t.Fatal(err)
 	}
 	req := <-capture.request
 	if req.GetEnv()["A"] != "1" || req.GetPolicyProfile() != "balanced" {
 		t.Fatalf("env=%v", req.GetEnv())
+	}
+	credentials := req.GetOauthCredentials()
+	if len(credentials) != 1 || credentials[0].GetTokenEndpoint().GetHost() != "auth.example.test" || len(credentials[0].GetResourceHosts()) != 1 ||
+		credentials[0].GetSentinels().GetAccessToken() != "access-sentinel" {
+		t.Fatalf("OAuth credentials did not roundtrip through Create: %+v", credentials)
 	}
 }

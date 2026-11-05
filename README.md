@@ -43,6 +43,11 @@ client registration from trusted host configuration. OAuth tokens are never
 returned by the SDK. Existing implementations of `Client` remain compatible;
 clients without account RPC support return an `unsupported` error.
 
+`CreateRequest.OAuthCredentials` carries sandbox-scoped OAuth kit metadata in
+the local API contract. The SDK only serializes this declaration; it does not
+perform token interception or write guest credential files. A daemon that does
+not implement the requested broker must reject the request.
+
 ## Development
 
 Requires Go 1.27.
