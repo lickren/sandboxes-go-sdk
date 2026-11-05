@@ -28,6 +28,19 @@ type SecretService interface {
 	Remove(ctx context.Context, service string, scope SecretScope, sandboxName string) (bool, error)
 }
 
+// SecretCreator is an optional capability for storing a secret only when no
+// secret already exists in that scope. Keeping it separate preserves source
+// compatibility for existing SecretService implementations.
+type SecretCreator interface {
+	Create(ctx context.Context, service string, scope SecretScope, sandboxName string, value []byte) (ServiceSecret, error)
+}
+
+// SecretCreation returns the optional create-only service-secret capability.
+func SecretCreation(c Client) (SecretCreator, bool) {
+	creator, ok := Secrets(c).(SecretCreator)
+	return creator, ok
+}
+
 // SecretServiceProvider is implemented by clients that expose service secrets.
 type SecretServiceProvider interface {
 	SecretService() SecretService
@@ -67,6 +80,20 @@ func (s secretClient) Set(ctx context.Context, service string, scope SecretScope
 	ctx, cancel := s.c.context(ctx)
 	defer cancel()
 	resp, err := s.c.secrets.Set(ctx, &localv1.SecretServiceSetRequest{
+		Service: service, Scope: string(scope), SandboxName: sandboxName, Value: value,
+	})
+	if err != nil {
+		return ServiceSecret{}, mapError(err)
+	}
+	return serviceSecretFromProto(resp.GetSecret()), nil
+}
+
+// Create stores a service secret only when no secret already exists in that scope.
+// The daemon performs the existence check and write under the same credential gate.
+func (s secretClient) Create(ctx context.Context, service string, scope SecretScope, sandboxName string, value []byte) (ServiceSecret, error) {
+	ctx, cancel := s.c.context(ctx)
+	defer cancel()
+	resp, err := s.c.secrets.Create(ctx, &localv1.SecretServiceCreateRequest{
 		Service: service, Scope: string(scope), SandboxName: sandboxName, Value: value,
 	})
 	if err != nil {

@@ -360,6 +360,42 @@ type CreateRequest struct {
 	Privileged bool
 	// Env is baked into the sandbox for every process, including exec.
 	Env map[string]string
+	// OAuthCredentials carries declaration-only kit metadata. Create verifies
+	// the daemon API version before sending it and fails closed for older APIs.
+	OAuthCredentials []OAuthCredential
+}
+
+// OAuthCredential mirrors the OAuth portion of a Docker Sandboxes v2 kit.
+type OAuthCredential struct {
+	Service        string
+	TokenEndpoint  *OAuthTokenEndpoint
+	ResourceHosts  []string
+	Sentinels      *OAuthSentinels
+	CredentialFile *OAuthCredentialFile
+	ResponseFields *OAuthResponseFields
+	Passthrough    bool
+	SkipIfEnv      []string
+}
+
+type OAuthTokenEndpoint struct {
+	Host string
+	Path string
+}
+type OAuthSentinels struct {
+	AccessToken  string
+	RefreshToken string
+}
+type OAuthCredentialFile struct {
+	Path          string
+	StructureJSON string
+	Template      string
+}
+type OAuthResponseFields struct {
+	AccessToken  string
+	RefreshToken string
+	ExpiresIn    string
+	Scope        string
+	IDToken      string
 }
 
 // StopOptions controls graceful shutdown. Zero selects the daemon default;

@@ -189,29 +189,75 @@ func (c *client) context(ctx context.Context) (context.Context, context.CancelFu
 type sandboxClient struct{ c *client }
 
 func (s sandboxClient) Create(ctx context.Context, req CreateRequest) (*Operation, error) {
+	if len(req.OAuthCredentials) > 0 {
+		version, err := Version(s.c).Get(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("verify daemon OAuth metadata support: %w", err)
+		}
+		if !apiVersionAtLeast(version.APIVersion, oauthCredentialsMinimumAPIVersion) {
+			return nil, &Error{Code: errorCodeUnsupported, Message: "daemon API does not support OAuth credential metadata"}
+		}
+	}
 	ctx, cancel := s.c.context(ctx)
 	defer cancel()
 	resp, err := s.c.sandboxes.Create(ctx, &localv1.CreateRequest{
-		Name:           req.Name,
-		Image:          req.Image,
-		Workspace:      req.Workspace,
-		IdempotencyKey: req.IdempotencyKey,
-		Cpus:           req.CPUs,
-		MemoryMib:      req.MemoryMiB,
-		Workspaces:     toProtoWorkspaces(req.Workspaces),
-		Ports:          toProtoPorts(req.Ports),
-		Allow:          toProtoRules(req.Allow),
-		Deny:           toProtoRules(req.Deny),
-		Agent:          req.Agent,
-		Detached:       req.Detached,
-		PolicyProfile:  req.PolicyProfile,
-		Privileged:     req.Privileged,
-		Env:            req.Env,
+		Name:             req.Name,
+		Image:            req.Image,
+		Workspace:        req.Workspace,
+		IdempotencyKey:   req.IdempotencyKey,
+		Cpus:             req.CPUs,
+		MemoryMib:        req.MemoryMiB,
+		Workspaces:       toProtoWorkspaces(req.Workspaces),
+		Ports:            toProtoPorts(req.Ports),
+		Allow:            toProtoRules(req.Allow),
+		Deny:             toProtoRules(req.Deny),
+		Agent:            req.Agent,
+		Detached:         req.Detached,
+		PolicyProfile:    req.PolicyProfile,
+		Privileged:       req.Privileged,
+		Env:              req.Env,
+		OauthCredentials: toProtoOAuthCredentials(req.OAuthCredentials),
 	})
 	if err != nil {
 		return nil, mapError(err)
 	}
 	return fromProtoOperation(resp.GetOperation()), nil
+}
+
+func toProtoOAuthCredentials(credentials []OAuthCredential) []*localv1.OAuthCredential {
+	if len(credentials) == 0 {
+		return nil
+	}
+	out := make([]*localv1.OAuthCredential, 0, len(credentials))
+	for i := range credentials {
+		credential := &credentials[i]
+		var tokenEndpoint *localv1.OAuthTokenEndpoint
+		if credential.TokenEndpoint != nil {
+			tokenEndpoint = &localv1.OAuthTokenEndpoint{Host: credential.TokenEndpoint.Host, Path: credential.TokenEndpoint.Path}
+		}
+		var sentinels *localv1.OAuthSentinels
+		if credential.Sentinels != nil {
+			sentinels = &localv1.OAuthSentinels{AccessToken: credential.Sentinels.AccessToken, RefreshToken: credential.Sentinels.RefreshToken}
+		}
+		var credentialFile *localv1.OAuthCredentialFile
+		if credential.CredentialFile != nil {
+			credentialFile = &localv1.OAuthCredentialFile{Path: credential.CredentialFile.Path, StructureJson: credential.CredentialFile.StructureJSON, Template: credential.CredentialFile.Template}
+		}
+		var responseFields *localv1.OAuthResponseFields
+		if credential.ResponseFields != nil {
+			responseFields = &localv1.OAuthResponseFields{AccessToken: credential.ResponseFields.AccessToken, RefreshToken: credential.ResponseFields.RefreshToken, ExpiresIn: credential.ResponseFields.ExpiresIn, Scope: credential.ResponseFields.Scope, IdToken: credential.ResponseFields.IDToken}
+		}
+		out = append(out, &localv1.OAuthCredential{
+			Service:        credential.Service,
+			TokenEndpoint:  tokenEndpoint,
+			ResourceHosts:  append([]string(nil), credential.ResourceHosts...),
+			Sentinels:      sentinels,
+			CredentialFile: credentialFile,
+			ResponseFields: responseFields,
+			Passthrough:    credential.Passthrough, SkipIfEnv: append([]string(nil), credential.SkipIfEnv...),
+		})
+	}
+	return out
 }
 
 func (s sandboxClient) GetPolicyProfile(ctx context.Context) (string, error) {

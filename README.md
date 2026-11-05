@@ -43,6 +43,16 @@ client registration from trusted host configuration. OAuth tokens are never
 returned by the SDK. Existing implementations of `Client` remain compatible;
 clients without account RPC support return an `unsupported` error.
 
+`CreateRequest.OAuthCredentials` carries sandbox-scoped OAuth kit metadata in
+the local API contract. Before sending it, the SDK checks that the daemon reports
+API version 0.0.15 or newer; an older daemon or a failed version check stops the
+request before Create. This version gate prevents older protobuf servers from
+silently ignoring the new field. The SDK only serializes the declaration; it
+does not perform token interception or write guest credential files. A daemon
+that recognizes the API version but does not implement the requested broker
+must still reject the request. Optional nested OAuth messages use pointers so
+omitted fields, such as sentinels in passthrough mode, remain absent on the wire.
+
 ## Development
 
 Requires Go 1.27.
