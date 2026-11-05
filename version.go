@@ -11,10 +11,11 @@ const oauthCredentialsMinimumAPIVersion = "0.0.15"
 func apiVersionAtLeast(actual, minimum string) bool {
 	parse := func(version string) ([3]uint64, bool) {
 		version = strings.TrimPrefix(version, "v")
-		if strings.Contains(version, "-") {
+		base, metadata, hasMetadata := strings.Cut(version, "+")
+		if strings.Contains(base, "-") {
 			return [3]uint64{}, false
 		}
-		if base, metadata, ok := strings.Cut(version, "+"); ok {
+		if hasMetadata {
 			if !validBuildMetadata(metadata) {
 				return [3]uint64{}, false
 			}

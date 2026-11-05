@@ -15,6 +15,7 @@ func TestAPIVersionAtLeast(t *testing.T) {
 		{name: "older patch", actual: "0.0.14", minimum: "0.0.15"},
 		{name: "prerelease fails closed", actual: "0.0.15-rc.1", minimum: "0.0.15"},
 		{name: "build metadata", actual: "0.0.15+build.1", minimum: "0.0.15", want: true},
+		{name: "hyphen in build metadata", actual: "0.0.15+build-1", minimum: "0.0.15", want: true},
 		{name: "empty build metadata", actual: "0.0.15+", minimum: "0.0.15"},
 		{name: "empty build metadata identifier", actual: "0.0.15+build..1", minimum: "0.0.15"},
 		{name: "invalid build metadata character", actual: "0.0.15+build!", minimum: "0.0.15"},
