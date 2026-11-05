@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.0.16 — 2026-11-06
+
+- Add the optional `DynamicSecretCreator` capability for host-side references or shell commands, refresh controls, and captured 1Password account/AWS profile selectors; fail closed unless daemon API v0.0.16 or newer is available.
+
 ## v0.0.15 — 2026-11-05
 
 ### Added

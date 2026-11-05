@@ -35,6 +35,30 @@ type SecretCreator interface {
 	Create(ctx context.Context, service string, scope SecretScope, sandboxName string, value []byte) (ServiceSecret, error)
 }
 
+// SecretSource describes a host-side dynamic credential source. References or
+// shell commands are stored by the daemon and resolved only on the host when
+// the proxy needs a credential.
+type SecretSource struct {
+	Reference  string
+	Command    string
+	Refresh    string
+	NoVerify   bool
+	ShowError  bool
+	OPAccount  string
+	AWSProfile string
+}
+
+// DynamicSecretCreator is an optional capability for storing a dynamic source.
+type DynamicSecretCreator interface {
+	SetSource(ctx context.Context, service string, scope SecretScope, sandboxName string, source SecretSource, overwrite bool) (ServiceSecret, error)
+}
+
+// SecretSources returns the optional dynamic-source capability.
+func SecretSources(c Client) (DynamicSecretCreator, bool) {
+	creator, ok := Secrets(c).(DynamicSecretCreator)
+	return creator, ok
+}
+
 // SecretCreation returns the optional create-only service-secret capability.
 func SecretCreation(c Client) (SecretCreator, bool) {
 	creator, ok := Secrets(c).(SecretCreator)
@@ -95,6 +119,45 @@ func (s secretClient) Create(ctx context.Context, service string, scope SecretSc
 	defer cancel()
 	resp, err := s.c.secrets.Create(ctx, &localv1.SecretServiceCreateRequest{
 		Service: service, Scope: string(scope), SandboxName: sandboxName, Value: value,
+	})
+	if err != nil {
+		return ServiceSecret{}, mapError(err)
+	}
+	return serviceSecretFromProto(resp.GetSecret()), nil
+}
+
+// SetSource stores a dynamic reference; it never sends a resolved value through
+// the SDK. overwrite selects the daemon's atomic Set or Create RPC.
+func (s secretClient) SetSource(ctx context.Context, service string, scope SecretScope, sandboxName string, source SecretSource, overwrite bool) (ServiceSecret, error) {
+	ctx, cancel := s.c.context(ctx)
+	defer cancel()
+	version, err := Version(s.c).Get(ctx)
+	if err != nil {
+		return ServiceSecret{}, err
+	}
+	if !apiVersionAtLeast(version.APIVersion, dynamicSecretSourcesMinimumAPIVersion) {
+		return ServiceSecret{}, &Error{Code: errorCodeUnsupported, Message: "dynamic secret sources require daemon API v0.0.16 or newer"}
+	}
+	request := &localv1.SecretSource{
+		Reference:  source.Reference,
+		Command:    source.Command,
+		Refresh:    source.Refresh,
+		NoVerify:   source.NoVerify,
+		ShowError:  source.ShowError,
+		OpAccount:  source.OPAccount,
+		AwsProfile: source.AWSProfile,
+	}
+	if overwrite {
+		resp, err := s.c.secrets.Set(ctx, &localv1.SecretServiceSetRequest{
+			Service: service, Scope: string(scope), SandboxName: sandboxName, Source: request,
+		})
+		if err != nil {
+			return ServiceSecret{}, mapError(err)
+		}
+		return serviceSecretFromProto(resp.GetSecret()), nil
+	}
+	resp, err := s.c.secrets.Create(ctx, &localv1.SecretServiceCreateRequest{
+		Service: service, Scope: string(scope), SandboxName: sandboxName, Source: request,
 	})
 	if err != nil {
 		return ServiceSecret{}, mapError(err)
