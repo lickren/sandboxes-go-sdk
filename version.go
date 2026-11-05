@@ -15,7 +15,7 @@ func apiVersionAtLeast(actual, minimum string) bool {
 			return [3]uint64{}, false
 		}
 		if base, metadata, ok := strings.Cut(version, "+"); ok {
-			if metadata == "" {
+			if !validBuildMetadata(metadata) {
 				return [3]uint64{}, false
 			}
 			version = base
@@ -45,6 +45,26 @@ func apiVersionAtLeast(actual, minimum string) bool {
 	for i := range got {
 		if got[i] != want[i] {
 			return got[i] > want[i]
+		}
+	}
+	return true
+}
+
+func validBuildMetadata(metadata string) bool {
+	if metadata == "" {
+		return false
+	}
+	for _, identifier := range strings.Split(metadata, ".") {
+		if identifier == "" {
+			return false
+		}
+		for i := range identifier {
+			char := identifier[i]
+			if (char >= '0' && char <= '9') || (char >= 'A' && char <= 'Z') ||
+				(char >= 'a' && char <= 'z') || char == '-' {
+				continue
+			}
+			return false
 		}
 	}
 	return true
