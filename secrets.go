@@ -24,9 +24,21 @@ type ServiceSecret struct {
 // SecretService manages host-keychain service secrets.
 type SecretService interface {
 	Set(ctx context.Context, service string, scope SecretScope, sandboxName string, value []byte) (ServiceSecret, error)
-	Create(ctx context.Context, service string, scope SecretScope, sandboxName string, value []byte) (ServiceSecret, error)
 	List(ctx context.Context) ([]ServiceSecret, error)
 	Remove(ctx context.Context, service string, scope SecretScope, sandboxName string) (bool, error)
+}
+
+// SecretCreator is an optional capability for storing a secret only when no
+// secret already exists in that scope. Keeping it separate preserves source
+// compatibility for existing SecretService implementations.
+type SecretCreator interface {
+	Create(ctx context.Context, service string, scope SecretScope, sandboxName string, value []byte) (ServiceSecret, error)
+}
+
+// SecretCreation returns the optional create-only service-secret capability.
+func SecretCreation(c Client) (SecretCreator, bool) {
+	creator, ok := Secrets(c).(SecretCreator)
+	return creator, ok
 }
 
 // SecretServiceProvider is implemented by clients that expose service secrets.
@@ -49,10 +61,6 @@ const unsupportedSecretsMessage = "service secrets are not supported by this cli
 type unsupportedSecretService struct{}
 
 func (unsupportedSecretService) Set(context.Context, string, SecretScope, string, []byte) (ServiceSecret, error) {
-	return ServiceSecret{}, &Error{Code: errorCodeUnsupported, Message: unsupportedSecretsMessage}
-}
-
-func (unsupportedSecretService) Create(context.Context, string, SecretScope, string, []byte) (ServiceSecret, error) {
 	return ServiceSecret{}, &Error{Code: errorCodeUnsupported, Message: unsupportedSecretsMessage}
 }
 
