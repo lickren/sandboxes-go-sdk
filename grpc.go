@@ -231,13 +231,29 @@ func toProtoOAuthCredentials(credentials []OAuthCredential) []*localv1.OAuthCred
 	out := make([]*localv1.OAuthCredential, 0, len(credentials))
 	for i := range credentials {
 		credential := &credentials[i]
+		var tokenEndpoint *localv1.OAuthTokenEndpoint
+		if credential.TokenEndpoint != nil {
+			tokenEndpoint = &localv1.OAuthTokenEndpoint{Host: credential.TokenEndpoint.Host, Path: credential.TokenEndpoint.Path}
+		}
+		var sentinels *localv1.OAuthSentinels
+		if credential.Sentinels != nil {
+			sentinels = &localv1.OAuthSentinels{AccessToken: credential.Sentinels.AccessToken, RefreshToken: credential.Sentinels.RefreshToken}
+		}
+		var credentialFile *localv1.OAuthCredentialFile
+		if credential.CredentialFile != nil {
+			credentialFile = &localv1.OAuthCredentialFile{Path: credential.CredentialFile.Path, StructureJson: credential.CredentialFile.StructureJSON, Template: credential.CredentialFile.Template}
+		}
+		var responseFields *localv1.OAuthResponseFields
+		if credential.ResponseFields != nil {
+			responseFields = &localv1.OAuthResponseFields{AccessToken: credential.ResponseFields.AccessToken, RefreshToken: credential.ResponseFields.RefreshToken, ExpiresIn: credential.ResponseFields.ExpiresIn, Scope: credential.ResponseFields.Scope, IdToken: credential.ResponseFields.IDToken}
+		}
 		out = append(out, &localv1.OAuthCredential{
 			Service:        credential.Service,
-			TokenEndpoint:  &localv1.OAuthTokenEndpoint{Host: credential.TokenEndpoint.Host, Path: credential.TokenEndpoint.Path},
+			TokenEndpoint:  tokenEndpoint,
 			ResourceHosts:  append([]string(nil), credential.ResourceHosts...),
-			Sentinels:      &localv1.OAuthSentinels{AccessToken: credential.Sentinels.AccessToken, RefreshToken: credential.Sentinels.RefreshToken},
-			CredentialFile: &localv1.OAuthCredentialFile{Path: credential.CredentialFile.Path, StructureJson: credential.CredentialFile.StructureJSON, Template: credential.CredentialFile.Template},
-			ResponseFields: &localv1.OAuthResponseFields{AccessToken: credential.ResponseFields.AccessToken, RefreshToken: credential.ResponseFields.RefreshToken, ExpiresIn: credential.ResponseFields.ExpiresIn, Scope: credential.ResponseFields.Scope, IdToken: credential.ResponseFields.IDToken},
+			Sentinels:      sentinels,
+			CredentialFile: credentialFile,
+			ResponseFields: responseFields,
 			Passthrough:    credential.Passthrough, SkipIfEnv: append([]string(nil), credential.SkipIfEnv...),
 		})
 	}

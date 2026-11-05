@@ -50,7 +50,8 @@ request before Create. This version gate prevents older protobuf servers from
 silently ignoring the new field. The SDK only serializes the declaration; it
 does not perform token interception or write guest credential files. A daemon
 that recognizes the API version but does not implement the requested broker
-must still reject the request.
+must still reject the request. Optional nested OAuth messages use pointers so
+omitted fields, such as sentinels in passthrough mode, remain absent on the wire.
 
 ## Development
 

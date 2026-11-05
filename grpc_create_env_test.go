@@ -49,9 +49,9 @@ func TestCreatePassesEnv(t *testing.T) {
 	if _, err := client.Sandboxes().Create(context.Background(), CreateRequest{
 		Name: "dev", Env: map[string]string{"A": "1"}, PolicyProfile: "balanced",
 		OAuthCredentials: []OAuthCredential{{
-			Service: "claude", TokenEndpoint: OAuthTokenEndpoint{Host: "auth.example.test", Path: "/oauth/token"},
-			ResourceHosts: []string{"api.example.test"}, Sentinels: OAuthSentinels{AccessToken: "access-sentinel", RefreshToken: "refresh-sentinel"},
-		}},
+			Service: "claude", TokenEndpoint: &OAuthTokenEndpoint{Host: "auth.example.test", Path: "/oauth/token"},
+			ResourceHosts: []string{"api.example.test"}, Sentinels: &OAuthSentinels{AccessToken: "access-sentinel", RefreshToken: "refresh-sentinel"},
+		}, {Service: "passthrough", Passthrough: true}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -60,9 +60,13 @@ func TestCreatePassesEnv(t *testing.T) {
 		t.Fatalf("env=%v", req.GetEnv())
 	}
 	credentials := req.GetOauthCredentials()
-	if len(credentials) != 1 || credentials[0].GetTokenEndpoint().GetHost() != "auth.example.test" || len(credentials[0].GetResourceHosts()) != 1 ||
+	if len(credentials) != 2 || credentials[0].GetTokenEndpoint().GetHost() != "auth.example.test" || len(credentials[0].GetResourceHosts()) != 1 ||
 		credentials[0].GetSentinels().GetAccessToken() != "access-sentinel" {
 		t.Fatalf("OAuth credentials did not roundtrip through Create: %+v", credentials)
+	}
+	if !credentials[1].GetPassthrough() || credentials[1].TokenEndpoint != nil || credentials[1].Sentinels != nil ||
+		credentials[1].CredentialFile != nil || credentials[1].ResponseFields != nil {
+		t.Fatalf("absent OAuth fields were encoded as present empty messages: %+v", credentials[1])
 	}
 }
 

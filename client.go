@@ -368,11 +368,11 @@ type CreateRequest struct {
 // OAuthCredential mirrors the OAuth portion of a Docker Sandboxes v2 kit.
 type OAuthCredential struct {
 	Service        string
-	TokenEndpoint  OAuthTokenEndpoint
+	TokenEndpoint  *OAuthTokenEndpoint
 	ResourceHosts  []string
-	Sentinels      OAuthSentinels
-	CredentialFile OAuthCredentialFile
-	ResponseFields OAuthResponseFields
+	Sentinels      *OAuthSentinels
+	CredentialFile *OAuthCredentialFile
+	ResponseFields *OAuthResponseFields
 	Passthrough    bool
 	SkipIfEnv      []string
 }

@@ -7,6 +7,7 @@
 - Add nested Docker Kits v2-shaped OAuth credential configuration to sandbox Create requests; this does not imply daemon runtime support.
 - Add the optional `SecretCreator` capability for atomic create-only writes; existing `SecretService` implementations remain source compatible.
 - Fail closed before sending OAuth metadata when daemon API version support cannot be verified or is older than 0.0.15.
+- Preserve absent optional OAuth messages in the protobuf request, including sentinels omitted for passthrough credentials.
 
 
 ## v0.0.12 — 2026-11-03
