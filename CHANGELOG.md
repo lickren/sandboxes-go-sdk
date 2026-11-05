@@ -5,6 +5,7 @@
 ### Added
 
 - Add nested Docker Kits v2-shaped OAuth credential configuration to sandbox Create requests; this does not imply daemon runtime support.
+- Add the optional `SecretCreator` capability for atomic create-only writes; existing `SecretService` implementations remain source compatible.
 
 
 ## v0.0.12 — 2026-11-03
