@@ -18,6 +18,10 @@ type unsupportedMCPService struct{}
 
 func (c *client) MCPService() MCPService { return mcpServiceClient{c: c} }
 
+func (unsupportedMCPService) List(context.Context, string) ([]MCPServer, error) {
+	return nil, &Error{Code: errorCodeUnsupported, Message: "MCP server inventory is not supported by this client"}
+}
+
 func (unsupportedMCPService) Call(context.Context, string, string, string, json.RawMessage) (json.RawMessage, error) {
 	return nil, &Error{Code: errorCodeUnsupported, Message: "MCP tool calls are not supported by this client"}
 }
@@ -54,4 +58,33 @@ func (s mcpServiceClient) Call(ctx context.Context, sandboxID, serverName, toolN
 		return nil, errors.New("daemon returned an invalid MCP tool result")
 	}
 	return result, nil
+}
+
+func (s mcpServiceClient) List(ctx context.Context, sandboxID string) ([]MCPServer, error) {
+	version, err := Version(s.c).Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("verify daemon MCP support: %w", err)
+	}
+	if !apiVersionAtLeast(version.APIVersion, mcpCallMinimumAPIVersion) {
+		return nil, &Error{Code: errorCodeUnsupported, Message: "MCP server inventory requires daemon API v0.0.18 or newer"}
+	}
+	ctx, cancel := s.c.context(ctx)
+	defer cancel()
+	resp, err := s.c.sandboxes.ListMCPServers(ctx, &localv1.ListMCPServersRequest{SandboxId: sandboxID})
+	if err != nil {
+		return nil, mapError(err)
+	}
+	servers := make([]MCPServer, 0, len(resp.GetServers()))
+	for _, server := range resp.GetServers() {
+		if server == nil || server.GetName() == "" {
+			return nil, errors.New("daemon returned an invalid MCP server summary")
+		}
+		servers = append(servers, MCPServer{
+			Name: server.GetName(), Gateway: server.GetGateway(), Transport: server.GetTransport(),
+			Loaded: server.GetLoaded(), Usable: server.GetUsable(), AuthRequired: server.GetAuthRequired(),
+			AuthConfigured: server.GetAuthConfigured(), HasCustomHeaders: server.GetHasCustomHeaders(),
+			CustomHeadersUsable: server.GetCustomHeadersUsable(),
+		})
+	}
+	return servers, nil
 }

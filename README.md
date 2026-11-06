@@ -57,6 +57,9 @@ omitted fields, such as sentinels in passthrough mode, remain absent on the wire
 MCP gateway. It validates that arguments are a JSON object and checks for API
 v0.0.18 before sending the request. It does not grant approval or implement
 server policy; the daemon must resolve the registered server and enforce both.
+`sandboxes.MCP(client).List` returns redacted gateway, transport, loaded,
+usability, and auth/header-state fields. It never returns credentials, header
+values, or OAuth identity and never starts a server or authentication flow.
 
 ## Development
 

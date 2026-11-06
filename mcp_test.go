@@ -20,6 +20,9 @@ type mcpTestServer struct {
 	callCount  int
 	request    *localv1.MCPCallRequest
 	callErr    error
+	listCount  int
+	listReq    *localv1.ListMCPServersRequest
+	listResp   *localv1.ListMCPServersResponse
 }
 
 func (s *mcpTestServer) GetVersion(context.Context, *localv1.GetVersionRequest) (*localv1.GetVersionResponse, error) {
@@ -33,6 +36,50 @@ func (s *mcpTestServer) MCPCall(_ context.Context, request *localv1.MCPCallReque
 		return nil, s.callErr
 	}
 	return &localv1.MCPCallResponse{ResultJson: `{"content":[]}`}, nil
+}
+
+func (s *mcpTestServer) ListMCPServers(_ context.Context, request *localv1.ListMCPServersRequest) (*localv1.ListMCPServersResponse, error) {
+	s.listCount++
+	s.listReq = request
+	if s.listResp != nil {
+		return s.listResp, nil
+	}
+	return &localv1.ListMCPServersResponse{Servers: []*localv1.MCPServerSummary{{
+		Name: "fixture", Gateway: "local", Transport: "stdio", Loaded: true, Usable: true,
+	}}}, nil
+}
+
+func TestMCPListReturnsRedactedServerSummaries(t *testing.T) {
+	client, server, cleanup := newMCPTestClient(t, "0.0.18")
+	defer cleanup()
+	got, err := MCP(client).List(context.Background(), "sb-owned")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if server.listCount != 1 || server.listReq.GetSandboxId() != "sb-owned" {
+		t.Fatalf("list count=%d request=%+v", server.listCount, server.listReq)
+	}
+	if len(got) != 1 || got[0].Name != "fixture" || got[0].Gateway != "local" || !got[0].Usable {
+		t.Fatalf("summaries=%+v", got)
+	}
+}
+
+func TestMCPListRejectsInvalidDaemonSummariesAndOldDaemon(t *testing.T) {
+	client, server, cleanup := newMCPTestClient(t, "0.0.18")
+	server.listResp = &localv1.ListMCPServersResponse{Servers: []*localv1.MCPServerSummary{{Gateway: "local"}}}
+	_, err := MCP(client).List(context.Background(), "")
+	if err == nil || server.listCount != 1 {
+		t.Fatalf("invalid summary err=%v list calls=%d", err, server.listCount)
+	}
+	cleanup()
+
+	client, server, cleanup = newMCPTestClient(t, "0.0.17")
+	defer cleanup()
+	_, err = MCP(client).List(context.Background(), "")
+	var typed *Error
+	if !errors.As(err, &typed) || typed.Code != errorCodeUnsupported || server.listCount != 0 {
+		t.Fatalf("old daemon err=%v list calls=%d", err, server.listCount)
+	}
 }
 
 func newMCPTestClient(t *testing.T, apiVersion string) (Client, *mcpTestServer, func()) {

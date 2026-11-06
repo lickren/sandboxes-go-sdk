@@ -30,7 +30,22 @@ type Client interface {
 // MCPService invokes tools through a daemon-managed MCP gateway. Approval and
 // server policy remain daemon responsibilities; callers cannot grant approval.
 type MCPService interface {
+	List(ctx context.Context, sandboxID string) ([]MCPServer, error)
 	Call(ctx context.Context, sandboxID, serverName, toolName string, arguments json.RawMessage) (json.RawMessage, error)
+}
+
+// MCPServer is a redacted daemon-owned registry entry. It contains no command,
+// credential, header value, or OAuth identity data.
+type MCPServer struct {
+	Name                string
+	Gateway             string
+	Transport           string
+	Loaded              bool
+	Usable              bool
+	AuthRequired        bool
+	AuthConfigured      bool
+	HasCustomHeaders    bool
+	CustomHeadersUsable bool
 }
 
 // MCPServiceProvider is optionally implemented by clients that support MCP.
