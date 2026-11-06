@@ -166,8 +166,14 @@ func TestMCPCallEnforcesPayloadLimits(t *testing.T) {
 
 	client, server, cleanup = newMCPTestClient(t, "0.0.18")
 	defer cleanup()
-	server.callResult = strings.Repeat("x", maxMCPCallResultBytes+1)
-	if _, err := MCP(client).Call(context.Background(), "sb-1", "server", "tool", nil); err == nil || err.Error() != "MCP tool result exceeds the 4 MiB limit" || server.callCount != 1 {
+	const emptyObject = `{"value":""}`
+	server.callResult = `{"value":"` + strings.Repeat("x", maxMCPCallResultBytes-len(emptyObject)) + `"}`
+	result, err := MCP(client).Call(context.Background(), "sb-1", "server", "tool", nil)
+	if err != nil || len(result) != maxMCPCallResultBytes {
+		t.Fatalf("boundary result length=%d err=%v", len(result), err)
+	}
+	server.callResult += " "
+	if _, err := MCP(client).Call(context.Background(), "sb-1", "server", "tool", nil); err == nil || err.Error() != "MCP tool result exceeds the 4 MiB limit" || server.callCount != 2 {
 		t.Fatalf("oversized result err=%v calls=%d", err, server.callCount)
 	}
 }
