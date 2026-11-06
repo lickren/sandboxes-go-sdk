@@ -10,7 +10,7 @@ import (
 	localv1 "github.com/rheic/sandboxes-api/gen/go/sandboxes/local/v1"
 )
 
-const mcpCallMinimumAPIVersion = "0.0.18"
+const mcpMinimumAPIVersion = "0.0.18"
 
 type mcpServiceClient struct{ c *client }
 
@@ -41,8 +41,8 @@ func (s mcpServiceClient) Call(ctx context.Context, sandboxID, serverName, toolN
 	if err != nil {
 		return nil, fmt.Errorf("verify daemon MCP support: %w", err)
 	}
-	if !apiVersionAtLeast(version.APIVersion, mcpCallMinimumAPIVersion) {
-		return nil, &Error{Code: errorCodeUnsupported, Message: "MCP tool calls require daemon API v0.0.18 or newer"}
+	if !apiVersionAtLeast(version.APIVersion, mcpMinimumAPIVersion) {
+		return nil, &Error{Code: errorCodeUnsupported, Message: "MCP requires daemon API v0.0.18 or newer"}
 	}
 	ctx, cancel := s.c.context(ctx)
 	defer cancel()
@@ -65,7 +65,7 @@ func (s mcpServiceClient) List(ctx context.Context, sandboxID string) ([]MCPServ
 	if err != nil {
 		return nil, fmt.Errorf("verify daemon MCP support: %w", err)
 	}
-	if !apiVersionAtLeast(version.APIVersion, mcpCallMinimumAPIVersion) {
+	if !apiVersionAtLeast(version.APIVersion, mcpMinimumAPIVersion) {
 		return nil, &Error{Code: errorCodeUnsupported, Message: "MCP server inventory requires daemon API v0.0.18 or newer"}
 	}
 	ctx, cancel := s.c.context(ctx)
