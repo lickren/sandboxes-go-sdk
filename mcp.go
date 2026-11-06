@@ -83,7 +83,8 @@ func (s mcpServiceClient) List(ctx context.Context, sandboxID string) ([]MCPServ
 			Name: server.GetName(), Gateway: server.GetGateway(), Transport: server.GetTransport(),
 			Loaded: server.GetLoaded(), Usable: server.GetUsable(), AuthRequired: server.GetAuthRequired(),
 			AuthConfigured: server.GetAuthConfigured(), HasCustomHeaders: server.GetHasCustomHeaders(),
-			CustomHeadersUsable: server.GetCustomHeadersUsable(),
+			CustomHeadersSupported:        server.GetCustomHeadersSupported(),
+			CustomHeaderSecretsConfigured: server.GetCustomHeaderSecretsConfigured(),
 		})
 	}
 	return servers, nil

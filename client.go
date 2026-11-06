@@ -37,15 +37,16 @@ type MCPService interface {
 // MCPServer is a redacted daemon-owned registry entry. It contains no command,
 // credential, header value, or OAuth identity data.
 type MCPServer struct {
-	Name                string
-	Gateway             string
-	Transport           string
-	Loaded              bool
-	Usable              bool
-	AuthRequired        bool
-	AuthConfigured      bool
-	HasCustomHeaders    bool
-	CustomHeadersUsable bool
+	Name                          string
+	Gateway                       string
+	Transport                     string
+	Loaded                        bool
+	Usable                        bool
+	AuthRequired                  bool
+	AuthConfigured                bool
+	HasCustomHeaders              bool
+	CustomHeadersSupported        bool
+	CustomHeaderSecretsConfigured bool
 }
 
 // MCPServiceProvider is optionally implemented by clients that support MCP.

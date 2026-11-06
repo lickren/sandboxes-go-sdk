@@ -46,6 +46,7 @@ func (s *mcpTestServer) ListMCPServers(_ context.Context, request *localv1.ListM
 	}
 	return &localv1.ListMCPServersResponse{Servers: []*localv1.MCPServerSummary{{
 		Name: "fixture", Gateway: "local", Transport: "stdio", Loaded: true, Usable: true,
+		HasCustomHeaders: true, CustomHeadersSupported: true, CustomHeaderSecretsConfigured: true,
 	}}}, nil
 }
 
@@ -59,7 +60,8 @@ func TestMCPListReturnsRedactedServerSummaries(t *testing.T) {
 	if server.listCount != 1 || server.listReq.GetSandboxId() != "sb-owned" {
 		t.Fatalf("list count=%d request=%+v", server.listCount, server.listReq)
 	}
-	if len(got) != 1 || got[0].Name != "fixture" || got[0].Gateway != "local" || !got[0].Usable {
+	if len(got) != 1 || got[0].Name != "fixture" || got[0].Gateway != "local" || !got[0].Usable ||
+		!got[0].CustomHeadersSupported || !got[0].CustomHeaderSecretsConfigured {
 		t.Fatalf("summaries=%+v", got)
 	}
 }
