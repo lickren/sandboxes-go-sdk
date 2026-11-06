@@ -8,6 +8,8 @@ import (
 
 const oauthCredentialsMinimumAPIVersion = "0.0.15"
 
+const dynamicSecretSourcesMinimumAPIVersion = "0.0.16"
+
 func apiVersionAtLeast(actual, minimum string) bool {
 	parse := func(version string) ([3]uint64, bool) {
 		version = strings.TrimPrefix(version, "v")
