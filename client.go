@@ -3,6 +3,7 @@ package sandboxes
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"time"
 )
@@ -24,6 +25,27 @@ type Client interface {
 	Operations() OperationService
 	RegistryCredentials() RegistryCredentialService
 	Close() error
+}
+
+// MCPService invokes tools through a daemon-managed MCP gateway. Approval and
+// server policy remain daemon responsibilities; callers cannot grant approval.
+type MCPService interface {
+	Call(ctx context.Context, sandboxID, serverName, toolName string, arguments json.RawMessage) (json.RawMessage, error)
+}
+
+// MCPServiceProvider is optionally implemented by clients that support MCP.
+type MCPServiceProvider interface {
+	MCPService() MCPService
+}
+
+// MCP returns the optional MCP gateway client.
+func MCP(c Client) MCPService {
+	if provider, ok := c.(MCPServiceProvider); ok {
+		if service := provider.MCPService(); service != nil {
+			return service
+		}
+	}
+	return unsupportedMCPService{}
 }
 
 // AccountService performs host-side provider login and logout. Provider names
