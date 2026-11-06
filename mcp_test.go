@@ -92,7 +92,7 @@ func TestMCPListRejectsInvalidDaemonSummariesAndOldDaemon(t *testing.T) {
 func newMCPTestClient(t *testing.T, apiVersion string) (Client, *mcpTestServer, func()) {
 	t.Helper()
 	listener := bufconn.Listen(1024 * 1024)
-	server := grpc.NewServer()
+	server := grpc.NewServer(grpc.MaxSendMsgSize(maxRPCResponseBytes))
 	implementation := &mcpTestServer{apiVersion: apiVersion}
 	localv1.RegisterSandboxServiceServer(server, implementation)
 	go func() { _ = server.Serve(listener) }()
@@ -167,7 +167,7 @@ func TestMCPCallEnforcesPayloadLimits(t *testing.T) {
 	client, server, cleanup = newMCPTestClient(t, "0.0.18")
 	defer cleanup()
 	server.callResult = strings.Repeat("x", maxMCPCallResultBytes+1)
-	if _, err := MCP(client).Call(context.Background(), "sb-1", "server", "tool", nil); err == nil || server.callCount != 1 {
+	if _, err := MCP(client).Call(context.Background(), "sb-1", "server", "tool", nil); err == nil || err.Error() != "MCP tool result exceeds the 4 MiB limit" || server.callCount != 1 {
 		t.Fatalf("oversized result err=%v calls=%d", err, server.callCount)
 	}
 }

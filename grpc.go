@@ -10,6 +10,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+const maxRPCResponseBytes = 5 << 20
+
 type client struct {
 	conn        *grpc.ClientConn
 	sandboxes   localv1.SandboxServiceClient
@@ -25,7 +27,10 @@ func New(cfg Config) (Client, error) {
 	if cfg.Address == "" {
 		return nil, fmt.Errorf("sandbox daemon address is required")
 	}
-	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxRPCResponseBytes)),
+	}
 	target, dialer, err := localGRPCEndpoint(cfg.Address, cfg.Dialer)
 	if err != nil {
 		return nil, fmt.Errorf("resolve local daemon endpoint: %w", err)
