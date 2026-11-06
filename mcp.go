@@ -10,7 +10,11 @@ import (
 	localv1 "github.com/rheic/sandboxes-api/gen/go/sandboxes/local/v1"
 )
 
-const mcpMinimumAPIVersion = "0.0.18"
+const (
+	mcpMinimumAPIVersion     = "0.0.18"
+	maxMCPCallArgumentsBytes = 1 << 20
+	maxMCPCallResultBytes    = 4 << 20
+)
 
 type mcpServiceClient struct{ c *client }
 
@@ -33,6 +37,9 @@ func (s mcpServiceClient) Call(ctx context.Context, sandboxID, serverName, toolN
 	if len(arguments) == 0 {
 		arguments = json.RawMessage(`{}`)
 	}
+	if len(arguments) > maxMCPCallArgumentsBytes {
+		return nil, errors.New("MCP arguments exceed the 1 MiB limit")
+	}
 	var object map[string]json.RawMessage
 	if err := json.Unmarshal(arguments, &object); err != nil || object == nil {
 		return nil, errors.New("MCP arguments must be a JSON object")
@@ -54,6 +61,9 @@ func (s mcpServiceClient) Call(ctx context.Context, sandboxID, serverName, toolN
 		return nil, mapError(err)
 	}
 	result := json.RawMessage(resp.GetResultJson())
+	if len(result) > maxMCPCallResultBytes {
+		return nil, errors.New("MCP tool result exceeds the 4 MiB limit")
+	}
 	if len(result) == 0 || !json.Valid(result) || !bytes.HasPrefix(bytes.TrimSpace(result), []byte("{")) {
 		return nil, errors.New("daemon returned an invalid MCP tool result")
 	}

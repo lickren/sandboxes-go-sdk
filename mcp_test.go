@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"strings"
 	"testing"
 
 	localv1 "github.com/rheic/sandboxes-api/gen/go/sandboxes/local/v1"
@@ -20,6 +21,7 @@ type mcpTestServer struct {
 	callCount  int
 	request    *localv1.MCPCallRequest
 	callErr    error
+	callResult string
 	listCount  int
 	listReq    *localv1.ListMCPServersRequest
 	listResp   *localv1.ListMCPServersResponse
@@ -34,6 +36,9 @@ func (s *mcpTestServer) MCPCall(_ context.Context, request *localv1.MCPCallReque
 	s.request = request
 	if s.callErr != nil {
 		return nil, s.callErr
+	}
+	if s.callResult != "" {
+		return &localv1.MCPCallResponse{ResultJson: s.callResult}, nil
 	}
 	return &localv1.MCPCallResponse{ResultJson: `{"content":[]}`}, nil
 }
@@ -148,6 +153,22 @@ func TestMCPCallRejectsInvalidArgumentsAndOldDaemon(t *testing.T) {
 	var typed *Error
 	if !errors.As(err, &typed) || typed.Code != errorCodeUnsupported || server.callCount != 0 {
 		t.Fatalf("old daemon err=%v calls=%d", err, server.callCount)
+	}
+}
+
+func TestMCPCallEnforcesPayloadLimits(t *testing.T) {
+	client, server, cleanup := newMCPTestClient(t, "0.0.18")
+	oversized := json.RawMessage(`{"value":"` + strings.Repeat("x", maxMCPCallArgumentsBytes) + `"}`)
+	if _, err := MCP(client).Call(context.Background(), "sb-1", "server", "tool", oversized); err == nil || server.callCount != 0 {
+		t.Fatalf("oversized args err=%v calls=%d", err, server.callCount)
+	}
+	cleanup()
+
+	client, server, cleanup = newMCPTestClient(t, "0.0.18")
+	defer cleanup()
+	server.callResult = strings.Repeat("x", maxMCPCallResultBytes+1)
+	if _, err := MCP(client).Call(context.Background(), "sb-1", "server", "tool", nil); err == nil || server.callCount != 1 {
+		t.Fatalf("oversized result err=%v calls=%d", err, server.callCount)
 	}
 }
 
