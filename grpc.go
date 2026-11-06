@@ -148,6 +148,26 @@ func (c *client) SetPolicyProfile(ctx context.Context, profile string) (string, 
 	return resp.GetProfile(), nil
 }
 
+func (c *client) Refresh(ctx context.Context) (int, error) {
+	ctx, cancel := c.context(ctx)
+	defer cancel()
+	resp, err := c.sandboxes.RefreshPolicies(ctx, &localv1.RefreshPoliciesRequest{})
+	if err != nil {
+		return 0, mapError(err)
+	}
+	return int(resp.GetApplied()), nil
+}
+
+func (c *client) ResetGlobal(ctx context.Context) ([]NetworkRule, []NetworkRule, string, error) {
+	ctx, cancel := c.context(ctx)
+	defer cancel()
+	resp, err := c.sandboxes.ResetGlobalPolicy(ctx, &localv1.ResetGlobalPolicyRequest{})
+	if err != nil {
+		return nil, nil, "", mapError(err)
+	}
+	return fromProtoRules(resp.GetAllow()), fromProtoRules(resp.GetDeny()), resp.GetProfile(), nil
+}
+
 func (c *client) PortService() PortService { return c }
 
 func (c *client) UpdatePorts(ctx context.Context, id string, ports []Port) (*Sandbox, error) {

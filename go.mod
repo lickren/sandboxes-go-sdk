@@ -4,7 +4,7 @@ go 1.27
 
 require (
 	github.com/Microsoft/go-winio v0.6.4
-	github.com/rheic/sandboxes-api v0.0.16
+	github.com/rheic/sandboxes-api v0.0.17
 	golang.org/x/sys v0.49.0
 	google.golang.org/grpc v1.85.0
 )
