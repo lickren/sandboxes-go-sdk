@@ -32,7 +32,35 @@ type Client interface {
 type MCPService interface {
 	List(ctx context.Context, sandboxID string) ([]MCPServer, error)
 	Call(ctx context.Context, sandboxID, serverName, toolName string, arguments json.RawMessage) (json.RawMessage, error)
+	ApproveCall(ctx context.Context, approvalID string) (json.RawMessage, error)
+	Register(ctx context.Context, server MCPServerConfig) (*MCPRegistration, error)
+	ApproveRegistration(ctx context.Context, approvalID string) (*MCPServer, error)
+	Remove(ctx context.Context, name string) (bool, error)
 }
+
+// MCPServerConfig describes a local stdio server. The daemon validates the
+// executable and working directory and asks for explicit host approval.
+type MCPServerConfig struct {
+	Name, Command, WorkingDirectory string
+	Arguments                       []string
+}
+
+// MCPRegistration is either an immediately approved registry summary or a
+// daemon-issued, one-use approval challenge.
+type MCPRegistration struct {
+	Server           *MCPServer
+	ApprovalID       string
+	ApprovalRequired bool
+}
+
+// MCPApprovalRequiredError carries only a daemon-issued challenge identifier.
+// It grants no authority by itself and expires on the daemon.
+type MCPApprovalRequiredError struct {
+	ApprovalID string
+	Reason     string
+}
+
+func (e *MCPApprovalRequiredError) Error() string { return "MCP approval is required" }
 
 // MCPServer is a redacted daemon-owned registry entry. It contains no command,
 // credential, header value, or OAuth identity data.

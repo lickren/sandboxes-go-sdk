@@ -17,14 +17,19 @@ import (
 
 type mcpTestServer struct {
 	localv1.UnimplementedSandboxServiceServer
-	apiVersion string
-	callCount  int
-	request    *localv1.MCPCallRequest
-	callErr    error
-	callResult string
-	listCount  int
-	listReq    *localv1.ListMCPServersRequest
-	listResp   *localv1.ListMCPServersResponse
+	apiVersion    string
+	callCount     int
+	request       *localv1.MCPCallRequest
+	callErr       error
+	callResult    string
+	callApproval  *localv1.MCPCallResponse
+	listCount     int
+	listReq       *localv1.ListMCPServersRequest
+	listResp      *localv1.ListMCPServersResponse
+	approvalReq   *localv1.MCPApproveCallRequest
+	registerReq   *localv1.MCPRegisterServerRequest
+	approveRegReq *localv1.MCPApproveRegistrationRequest
+	removeReq     *localv1.MCPRemoveServerRequest
 }
 
 func (s *mcpTestServer) GetVersion(context.Context, *localv1.GetVersionRequest) (*localv1.GetVersionResponse, error) {
@@ -36,6 +41,9 @@ func (s *mcpTestServer) MCPCall(_ context.Context, request *localv1.MCPCallReque
 	s.request = request
 	if s.callErr != nil {
 		return nil, s.callErr
+	}
+	if s.callApproval != nil {
+		return s.callApproval, nil
 	}
 	if s.callResult != "" {
 		return &localv1.MCPCallResponse{ResultJson: s.callResult}, nil
@@ -53,6 +61,26 @@ func (s *mcpTestServer) ListMCPServers(_ context.Context, request *localv1.ListM
 		Name: "fixture", Gateway: "local", Transport: "stdio", Loaded: true, Usable: true,
 		HasCustomHeaders: true, CustomHeadersSupported: true, CustomHeaderSecretsConfigured: true,
 	}}}, nil
+}
+
+func (s *mcpTestServer) MCPApproveCall(_ context.Context, request *localv1.MCPApproveCallRequest) (*localv1.MCPApproveCallResponse, error) {
+	s.approvalReq = request
+	return &localv1.MCPApproveCallResponse{ResultJson: `{"content":[]}`}, nil
+}
+
+func (s *mcpTestServer) MCPRegisterServer(_ context.Context, request *localv1.MCPRegisterServerRequest) (*localv1.MCPRegisterServerResponse, error) {
+	s.registerReq = request
+	return &localv1.MCPRegisterServerResponse{ApprovalRequired: true, ApprovalId: "registration-1"}, nil
+}
+
+func (s *mcpTestServer) MCPApproveRegistration(_ context.Context, request *localv1.MCPApproveRegistrationRequest) (*localv1.MCPApproveRegistrationResponse, error) {
+	s.approveRegReq = request
+	return &localv1.MCPApproveRegistrationResponse{Server: &localv1.MCPServerSummary{Name: "fixture", Gateway: "local", Transport: "stdio", Usable: true}}, nil
+}
+
+func (s *mcpTestServer) MCPRemoveServer(_ context.Context, request *localv1.MCPRemoveServerRequest) (*localv1.MCPRemoveServerResponse, error) {
+	s.removeReq = request
+	return &localv1.MCPRemoveServerResponse{Removed: true}, nil
 }
 
 func TestMCPListReturnsRedactedServerSummaries(t *testing.T) {
@@ -186,5 +214,48 @@ func TestMCPCallMapsDaemonErrors(t *testing.T) {
 	var typed *Error
 	if !errors.As(err, &typed) || typed.Code != "permission_denied" {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestMCPCallReturnsDaemonIssuedApprovalChallenge(t *testing.T) {
+	client, server, cleanup := newMCPTestClient(t, "0.0.18")
+	defer cleanup()
+	server.callApproval = &localv1.MCPCallResponse{ApprovalRequired: true, ApprovalId: "challenge-1", ApprovalReason: "host approval"}
+	_, err := MCP(client).Call(context.Background(), "sb-1", "search", "find", nil)
+	var approval *MCPApprovalRequiredError
+	if !errors.As(err, &approval) || approval.ApprovalID != "challenge-1" || approval.Reason != "host approval" {
+		t.Fatalf("approval error = %#v", err)
+	}
+}
+
+func TestMCPRegistrationAndOneUseApprovalRPCs(t *testing.T) {
+	client, server, cleanup := newMCPTestClient(t, "0.0.18")
+	defer cleanup()
+	mcp := MCP(client)
+	registration, err := mcp.Register(context.Background(), MCPServerConfig{Name: "fixture", Command: "/opt/fixture", Arguments: []string{"--stdio"}, WorkingDirectory: "/tmp"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !registration.ApprovalRequired || registration.ApprovalID != "registration-1" || server.registerReq.GetCommand() != "/opt/fixture" || len(server.registerReq.GetArguments()) != 1 {
+		t.Fatalf("registration=%+v request=%+v", registration, server.registerReq)
+	}
+	if _, err := mcp.ApproveRegistration(context.Background(), registration.ApprovalID); err != nil {
+		t.Fatal(err)
+	}
+	if server.approveRegReq.GetApprovalId() != "registration-1" {
+		t.Fatalf("registration approval=%+v", server.approveRegReq)
+	}
+	removed, err := mcp.Remove(context.Background(), "fixture")
+	if err != nil || !removed || server.removeReq.GetName() != "fixture" {
+		t.Fatalf("removed=%t request=%+v err=%v", removed, server.removeReq, err)
+	}
+}
+
+func TestMCPApproveCallUsesDaemonChallengeWithoutClientGrant(t *testing.T) {
+	client, server, cleanup := newMCPTestClient(t, "0.0.18")
+	defer cleanup()
+	result, err := MCP(client).ApproveCall(context.Background(), "daemon-challenge")
+	if err != nil || string(result) != `{"content":[]}` || server.approvalReq.GetApprovalId() != "daemon-challenge" {
+		t.Fatalf("result=%s request=%+v err=%v", result, server.approvalReq, err)
 	}
 }
