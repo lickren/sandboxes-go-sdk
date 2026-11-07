@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"strings"
 
 	localv1 "github.com/rheic/sandboxes-api/gen/go/sandboxes/local/v1"
 )
@@ -113,16 +115,23 @@ func (s mcpServiceClient) ApproveCall(ctx context.Context, approvalID string) (j
 }
 
 func (s mcpServiceClient) Register(ctx context.Context, server MCPServerConfig) (*MCPRegistration, error) {
-	if server.Name == "" || server.Command == "" || server.WorkingDirectory == "" || len(server.Arguments) > 64 {
-		return nil, errors.New("MCP name, command, absolute working directory, and at most 64 arguments are required")
+	if server.Name == "" {
+		return nil, errors.New("MCP server name is required")
 	}
-	total := len(server.Name) + len(server.Command) + len(server.WorkingDirectory)
-	for _, arg := range server.Arguments {
-		total += len(arg)
+	if server.URL != "" && server.Command != "" {
+		return nil, errors.New("set either command or url, not both")
 	}
-	if total > 16<<10 {
-		return nil, errors.New("MCP registration exceeds 16 KiB")
+	if server.URL == "" && (server.Command == "" || server.WorkingDirectory == "") {
+		return nil, errors.New("MCP name, command, and absolute working directory are required")
 	}
+	if len(server.Arguments) > 64 || len(server.Headers) > 16 {
+		return nil, errors.New("MCP registration exceeds argument or header limits")
+	}
+	total, err := validateMCPServerConfig(server)
+	if err != nil {
+		return nil, err
+	}
+	_ = total
 	if err := s.requireMCPVersion(ctx); err != nil {
 		return nil, err
 	}
@@ -130,6 +139,7 @@ func (s mcpServiceClient) Register(ctx context.Context, server MCPServerConfig) 
 	defer cancel()
 	resp, err := s.c.sandboxes.MCPRegisterServer(ctx, &localv1.MCPRegisterServerRequest{
 		Name: server.Name, Command: server.Command, Arguments: append([]string(nil), server.Arguments...), WorkingDirectory: server.WorkingDirectory,
+		Url: server.URL, Headers: maps.Clone(server.Headers),
 	})
 	if err != nil {
 		return nil, mapError(err)
@@ -238,4 +248,26 @@ func (s mcpServiceClient) List(ctx context.Context, sandboxID string) ([]MCPServ
 		})
 	}
 	return servers, nil
+}
+
+// validateMCPServerConfig bounds registration size and rejects secret-bearing
+// or control-character header content before any RPC is made.
+func validateMCPServerConfig(server MCPServerConfig) (int, error) {
+	total := len(server.Name) + len(server.Command) + len(server.WorkingDirectory) + len(server.URL)
+	for _, arg := range server.Arguments {
+		total += len(arg)
+	}
+	for key, value := range server.Headers {
+		total += len(key) + len(value)
+		if strings.ContainsAny(value, "\r\n\x00") {
+			return 0, errors.New("MCP header values must not contain control characters")
+		}
+		if strings.EqualFold(strings.TrimSpace(key), "authorization") || strings.EqualFold(strings.TrimSpace(key), "proxy-authorization") {
+			return 0, errors.New("secret MCP headers must come from the host credential broker, not registration")
+		}
+	}
+	if total > 16<<10 {
+		return 0, errors.New("MCP registration exceeds 16 KiB")
+	}
+	return total, nil
 }

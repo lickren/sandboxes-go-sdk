@@ -259,3 +259,35 @@ func TestMCPApproveCallUsesDaemonChallengeWithoutClientGrant(t *testing.T) {
 		t.Fatalf("result=%s request=%+v err=%v", result, server.approvalReq, err)
 	}
 }
+
+func TestMCPRemoteRegistrationSendsURLAndHeaders(t *testing.T) {
+	client, server, cleanup := newMCPTestClient(t, "0.0.20")
+	defer cleanup()
+	mcp := MCP(client)
+	registration, err := mcp.Register(context.Background(), MCPServerConfig{
+		Name:    "remote-fixture",
+		URL:     "https://mcp.example.com/mcp",
+		Headers: map[string]string{"X-Team": "docs"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !registration.ApprovalRequired || server.registerReq.GetUrl() != "https://mcp.example.com/mcp" || server.registerReq.GetHeaders()["X-Team"] != "docs" {
+		t.Fatalf("registration=%+v request=%+v", registration, server.registerReq)
+	}
+	if server.registerReq.GetCommand() != "" {
+		t.Fatalf("remote registration carried a command: %+v", server.registerReq)
+	}
+}
+
+func TestMCPRemoteRegistrationRejectsAmbiguousConfig(t *testing.T) {
+	client, _, cleanup := newMCPTestClient(t, "0.0.20")
+	defer cleanup()
+	mcp := MCP(client)
+	if _, err := mcp.Register(context.Background(), MCPServerConfig{Name: "fixture", Command: "/opt/fixture", WorkingDirectory: "/tmp", URL: "https://mcp.example.com/mcp"}); err == nil {
+		t.Fatal("ambiguous registration was accepted")
+	}
+	if _, err := mcp.Register(context.Background(), MCPServerConfig{Name: "fixture", URL: "https://mcp.example.com/mcp", Headers: map[string]string{"Authorization": "Bearer x"}}); err == nil {
+		t.Fatal("secret-bearing registration was accepted client-side")
+	}
+}
