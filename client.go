@@ -116,10 +116,21 @@ type InteractiveAccountServiceProvider interface {
 	InteractiveAccountService() InteractiveAccountService
 }
 
+// AccountCredentialStatus reports only presence metadata for local account
+// credentials. It never returns account names, tokens, expiry values or
+// credential fingerprints.
+type AccountCredentialStatus struct {
+	Present            bool
+	RefreshPresent     bool
+	RefreshCoordinated bool
+}
+
 // AccountStatusService reports only whether local credentials are stored. It
 // never returns account names, tokens, or credential fingerprints.
 type AccountStatusService interface {
 	Status(ctx context.Context, provider string) (bool, error)
+	// StatusDetail reports presence-only credential and refresh metadata.
+	StatusDetail(ctx context.Context, provider string) (AccountCredentialStatus, error)
 }
 
 type AccountStatusServiceProvider interface {
@@ -202,6 +213,10 @@ func (unsupportedInteractiveAccountService) LoginInteractive(context.Context, st
 
 func (unsupportedAccountStatusService) Status(context.Context, string) (bool, error) {
 	return false, &Error{Code: errorCodeUnsupported, Message: "account status is not supported by this client"}
+}
+
+func (unsupportedAccountStatusService) StatusDetail(context.Context, string) (AccountCredentialStatus, error) {
+	return AccountCredentialStatus{}, &Error{Code: errorCodeUnsupported, Message: "account status is not supported by this client"}
 }
 
 func (unsupportedAccountService) Login(context.Context, string) error {
