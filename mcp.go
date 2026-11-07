@@ -263,11 +263,61 @@ func validateMCPServerConfig(server MCPServerConfig) (int, error) {
 			return 0, errors.New("MCP header values must not contain control characters")
 		}
 		if strings.EqualFold(strings.TrimSpace(key), "authorization") || strings.EqualFold(strings.TrimSpace(key), "proxy-authorization") {
-			return 0, errors.New("secret MCP headers must come from the host credential broker, not registration")
+			if !hasMCPSecretPlaceholder(value) {
+				return 0, errors.New("secret MCP headers must use a host-vault ${placeholder}, not a literal value")
+			}
 		}
 	}
 	if total > 16<<10 {
 		return 0, errors.New("MCP registration exceeds 16 KiB")
 	}
 	return total, nil
+}
+
+func hasMCPSecretPlaceholder(value string) bool {
+	found := false
+	for offset := 0; offset < len(value); {
+		start := strings.Index(value[offset:], "${")
+		if start < 0 {
+			if strings.Contains(value[offset:], "}") {
+				return false
+			}
+			return found
+		}
+		start += offset
+		if strings.Contains(value[offset:start], "}") {
+			return false
+		}
+		end := strings.IndexByte(value[start+2:], '}')
+		if end < 0 {
+			return false
+		}
+		end += start + 2
+		name := value[start+2 : end]
+		if !validMCPPlaceholderName(name) {
+			return false
+		}
+		found = true
+		offset = end + 1
+	}
+	return found
+}
+
+func validMCPPlaceholderName(name string) bool {
+	if name == "" || len(name) > 64 {
+		return false
+	}
+	for index, char := range name {
+		if !validMCPPlaceholderCharacter(char) || index == 0 && (char == '_' || char == '-') {
+			return false
+		}
+	}
+	return true
+}
+
+func validMCPPlaceholderCharacter(char rune) bool {
+	if char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= '0' && char <= '9' || char == '_' || char == '-' {
+		return true
+	}
+	return false
 }

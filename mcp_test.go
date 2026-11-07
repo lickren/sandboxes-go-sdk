@@ -267,12 +267,12 @@ func TestMCPRemoteRegistrationSendsURLAndHeaders(t *testing.T) {
 	registration, err := mcp.Register(context.Background(), MCPServerConfig{
 		Name:    "remote-fixture",
 		URL:     "https://mcp.example.com/mcp",
-		Headers: map[string]string{"X-Team": "docs"},
+		Headers: map[string]string{"X-Team": "docs", "Authorization": "Bearer ${token}"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !registration.ApprovalRequired || server.registerReq.GetUrl() != "https://mcp.example.com/mcp" || server.registerReq.GetHeaders()["X-Team"] != "docs" {
+	if !registration.ApprovalRequired || server.registerReq.GetUrl() != "https://mcp.example.com/mcp" || server.registerReq.GetHeaders()["X-Team"] != "docs" || server.registerReq.GetHeaders()["Authorization"] != "Bearer ${token}" {
 		t.Fatalf("registration=%+v request=%+v", registration, server.registerReq)
 	}
 	if server.registerReq.GetCommand() != "" {
@@ -288,6 +288,12 @@ func TestMCPRemoteRegistrationRejectsAmbiguousConfig(t *testing.T) {
 		t.Fatal("ambiguous registration was accepted")
 	}
 	if _, err := mcp.Register(context.Background(), MCPServerConfig{Name: "fixture", URL: "https://mcp.example.com/mcp", Headers: map[string]string{"Authorization": "Bearer x"}}); err == nil {
-		t.Fatal("secret-bearing registration was accepted client-side")
+		t.Fatal("literal secret-bearing registration was accepted client-side")
+	}
+	if _, err := mcp.Register(context.Background(), MCPServerConfig{Name: "fixture", URL: "https://mcp.example.com/mcp", Headers: map[string]string{"Authorization": "Bearer ${}"}}); err == nil {
+		t.Fatal("invalid MCP vault placeholder was accepted client-side")
+	}
+	if _, err := mcp.Register(context.Background(), MCPServerConfig{Name: "fixture", URL: "https://mcp.example.com/mcp", Headers: map[string]string{"Authorization": "Bearer } ${token}"}}); err == nil {
+		t.Fatal("malformed MCP vault placeholder was accepted client-side")
 	}
 }
