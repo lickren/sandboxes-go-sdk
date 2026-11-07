@@ -127,22 +127,11 @@ func (s mcpServiceClient) Register(ctx context.Context, server MCPServerConfig) 
 	if len(server.Arguments) > 64 || len(server.Headers) > 16 {
 		return nil, errors.New("MCP registration exceeds argument or header limits")
 	}
-	total := len(server.Name) + len(server.Command) + len(server.WorkingDirectory) + len(server.URL)
-	for _, arg := range server.Arguments {
-		total += len(arg)
+	total, err := validateMCPServerConfig(server)
+	if err != nil {
+		return nil, err
 	}
-	for key, value := range server.Headers {
-		total += len(key) + len(value)
-		if strings.ContainsAny(value, "\r\n\x00") {
-			return nil, errors.New("MCP header values must not contain control characters")
-		}
-		if strings.EqualFold(strings.TrimSpace(key), "authorization") || strings.EqualFold(strings.TrimSpace(key), "proxy-authorization") {
-			return nil, errors.New("secret MCP headers must come from the host credential broker, not registration")
-		}
-	}
-	if total > 16<<10 {
-		return nil, errors.New("MCP registration exceeds 16 KiB")
-	}
+	_ = total
 	if err := s.requireMCPVersion(ctx); err != nil {
 		return nil, err
 	}
@@ -259,4 +248,26 @@ func (s mcpServiceClient) List(ctx context.Context, sandboxID string) ([]MCPServ
 		})
 	}
 	return servers, nil
+}
+
+// validateMCPServerConfig bounds registration size and rejects secret-bearing
+// or control-character header content before any RPC is made.
+func validateMCPServerConfig(server MCPServerConfig) (int, error) {
+	total := len(server.Name) + len(server.Command) + len(server.WorkingDirectory) + len(server.URL)
+	for _, arg := range server.Arguments {
+		total += len(arg)
+	}
+	for key, value := range server.Headers {
+		total += len(key) + len(value)
+		if strings.ContainsAny(value, "\r\n\x00") {
+			return 0, errors.New("MCP header values must not contain control characters")
+		}
+		if strings.EqualFold(strings.TrimSpace(key), "authorization") || strings.EqualFold(strings.TrimSpace(key), "proxy-authorization") {
+			return 0, errors.New("secret MCP headers must come from the host credential broker, not registration")
+		}
+	}
+	if total > 16<<10 {
+		return 0, errors.New("MCP registration exceeds 16 KiB")
+	}
+	return total, nil
 }
