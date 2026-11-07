@@ -3,6 +3,7 @@ package sandboxes
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"time"
 )
@@ -24,6 +25,71 @@ type Client interface {
 	Operations() OperationService
 	RegistryCredentials() RegistryCredentialService
 	Close() error
+}
+
+// MCPService invokes tools through a daemon-managed MCP gateway. Approval and
+// server policy remain daemon responsibilities; callers cannot grant approval.
+type MCPService interface {
+	List(ctx context.Context, sandboxID string) ([]MCPServer, error)
+	Call(ctx context.Context, sandboxID, serverName, toolName string, arguments json.RawMessage) (json.RawMessage, error)
+	ApproveCall(ctx context.Context, approvalID string) (json.RawMessage, error)
+	Register(ctx context.Context, server MCPServerConfig) (*MCPRegistration, error)
+	ApproveRegistration(ctx context.Context, approvalID string) (*MCPServer, error)
+	Remove(ctx context.Context, name string) (bool, error)
+}
+
+// MCPServerConfig describes a local stdio server. The daemon validates the
+// executable and working directory and asks for explicit host approval.
+type MCPServerConfig struct {
+	Name, Command, WorkingDirectory string
+	Arguments                       []string
+}
+
+// MCPRegistration is either an immediately approved registry summary or a
+// daemon-issued, one-use approval challenge.
+type MCPRegistration struct {
+	Server           *MCPServer
+	ApprovalID       string
+	ApprovalRequired bool
+}
+
+// MCPApprovalRequiredError carries only a daemon-issued challenge identifier.
+// It grants no authority by itself and expires on the daemon.
+type MCPApprovalRequiredError struct {
+	ApprovalID string
+	Reason     string
+}
+
+func (e *MCPApprovalRequiredError) Error() string { return "MCP approval is required" }
+
+// MCPServer is a redacted daemon-owned registry entry. It contains no command,
+// credential, header value, or OAuth identity data.
+type MCPServer struct {
+	Name                          string
+	Gateway                       string
+	Transport                     string
+	Loaded                        bool
+	Usable                        bool
+	AuthRequired                  bool
+	AuthConfigured                bool
+	HasCustomHeaders              bool
+	CustomHeadersSupported        bool
+	CustomHeaderSecretsConfigured bool
+}
+
+// MCPServiceProvider is optionally implemented by clients that support MCP.
+type MCPServiceProvider interface {
+	MCPService() MCPService
+}
+
+// MCP returns the optional MCP gateway client.
+func MCP(c Client) MCPService {
+	if provider, ok := c.(MCPServiceProvider); ok {
+		if service := provider.MCPService(); service != nil {
+			return service
+		}
+	}
+	return unsupportedMCPService{}
 }
 
 // AccountService performs host-side provider login and logout. Provider names

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Add the optional `MCPService` capability for bounded daemon-managed tool
+  calls; validate JSON object arguments and fail closed unless API v0.0.18 or
+  newer is reported. Policy and approval remain daemon responsibilities.
+- Add redacted MCP server inventory for clients implementing `mcp ls`.
+
 ## v0.0.16 — 2026-11-06
 
 - Add the optional `DynamicSecretCreator` capability for host-side references or shell commands, refresh controls, and captured 1Password account/AWS profile selectors; fail closed unless daemon API v0.0.16 or newer is available.
