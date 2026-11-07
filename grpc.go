@@ -512,6 +512,20 @@ func (a accountServiceClient) Status(ctx context.Context, provider string) (bool
 	return resp.GetCredentialPresent(), nil
 }
 
+func (a accountServiceClient) StatusDetail(ctx context.Context, provider string) (AccountCredentialStatus, error) {
+	ctx, cancel := a.c.context(ctx)
+	defer cancel()
+	resp, err := a.c.accounts.Status(ctx, &localv1.AccountServiceStatusRequest{Provider: provider})
+	if err != nil {
+		return AccountCredentialStatus{}, mapError(err)
+	}
+	return AccountCredentialStatus{
+		Present:            resp.GetCredentialPresent(),
+		RefreshPresent:     resp.GetRefreshPresent(),
+		RefreshCoordinated: resp.GetRefreshCoordinated(),
+	}, nil
+}
+
 func (a accountServiceClient) Login(ctx context.Context, provider string) error {
 	ctx, cancel := a.c.context(ctx)
 	defer cancel()
