@@ -43,6 +43,13 @@ type MCPService interface {
 type MCPServerConfig struct {
 	Name, Command, WorkingDirectory string
 	Arguments                       []string
+	// URL selects the remote streamable-HTTP transport. Exactly one of
+	// Command or URL must be set. Remote hosts are constrained by the
+	// daemon's fail-closed allowlist.
+	URL string
+	// Headers are static, non-secret request headers for the remote
+	// transport. Secret material must come from the host credential broker.
+	Headers map[string]string
 }
 
 // MCPRegistration is either an immediately approved registry summary or a
